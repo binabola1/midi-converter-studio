@@ -278,7 +278,7 @@ def main():
     report = refine(args.input, args.output, args.mode,
                     clamp(args.min_velocity, 1, 127),
                     clamp(args.quantize_strength, 0, 1),
-                    not args.no_harmonic_cleanup)
+                    not args.no_harmonic_cleanup, overrides)
     print(json.dumps(report))
 
 if __name__ == "__main__":
