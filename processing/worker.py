@@ -10,7 +10,7 @@ def db():
  return pymysql.connect(host=os.getenv("MIDI_DB_HOST","127.0.0.1"),port=int(os.getenv("MIDI_DB_PORT","3306")),user=os.getenv("MIDI_DB_USER","root"),password=os.getenv("MIDI_DB_PASS",""),database=os.getenv("MIDI_DB_NAME","midi_converter_studio"),autocommit=True,cursorclass=pymysql.cursors.DictCursor)
 def progress(cid,p,status=None,error=None,engine="neural"):
  with db() as x:
-  with x.cursor() as q:q.execute("UPDATE conversions SET progress=%s,status=COALESCE(%s,status),error_message=%s,started_at=COALESCE(started_at,NOW()),completed_at=CASE WHEN %s IN ('completed','failed') THEN NOW() ELSE completed_at END,processing_engine=%s WHERE id=%s",(p,status,error,status,("phase10-neural" if engine=="neural" else "phase8-classic"),cid))
+  with x.cursor() as q:q.execute("UPDATE conversions SET progress=%s,status=COALESCE(%s,status),error_message=%s,started_at=COALESCE(started_at,NOW()),completed_at=CASE WHEN %s IN ('completed','failed') THEN NOW() ELSE completed_at END,processing_engine=%s WHERE id=%s",(p,status,error,status,("phase10-neural" if engine=="neural" else ("phase12-reprocess" if engine=="reprocess" else "phase8-classic")),cid))
 def process(job):
  cid=int(job["conversion_id"]);engine=job.get("engine","neural");progress(cid,1,"processing",engine=engine)
  with db() as x:
@@ -22,6 +22,10 @@ def process(job):
  if engine=="neural":
   quality=job.get("quality",{})
   cmd=[sys.executable,str(BASE/"processing"/"neural_pipeline.py"),str(source),str(out),"--mode",job["mode"],"--separate","--min-velocity",str(quality.get("min_velocity",20)),"--quantize-strength",str(quality.get("quantize_strength",0.72)),"--track-overrides",json.dumps(quality.get("track_overrides",{}))]
+  if not quality.get("harmonic_cleanup",True): cmd.append("--no-harmonic-cleanup")
+ elif engine=="reprocess":
+  quality=job.get("quality",{})
+  cmd=[sys.executable,str(BASE/"processing"/"reprocess_midi.py"),str(source),str(out),"--mode",job.get("mode","automatic"),"--min-velocity",str(quality.get("min_velocity",20)),"--quantize-strength",str(quality.get("quantize_strength",0.72)),"--track-overrides",json.dumps(quality.get("track_overrides",{}))]
   if not quality.get("harmonic_cleanup",True): cmd.append("--no-harmonic-cleanup")
  else: cmd=[sys.executable,str(BASE/"processing"/"audio_to_midi.py"),str(source),str(out),"--mode",job["mode"],"--json",str(report)]
  proc=subprocess.run(cmd,capture_output=True,text=True,timeout=int(os.getenv("MIDI_ENGINE_TIMEOUT","900")))
