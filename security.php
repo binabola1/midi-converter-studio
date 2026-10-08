@@ -1,0 +1,10 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__.'/functions.php';
+function csrf_token():string{if(empty($_SESSION['_csrf']))$_SESSION['_csrf']=bin2hex(random_bytes(32));return $_SESSION['_csrf'];}
+function verify_csrf(?string $token):void{if(!$token||empty($_SESSION['_csrf'])||!hash_equals($_SESSION['_csrf'],$token)){if(str_contains($_SERVER['REQUEST_URI']??'','/api/'))json_response(false,'Invalid CSRF token.',[],419);http_response_code(419);exit('Invalid CSRF token.');}}
+function security_headers():void{header('X-Content-Type-Options: nosniff');header('X-Frame-Options: SAMEORIGIN');header('Referrer-Policy: strict-origin-when-cross-origin');header('Permissions-Policy: microphone=(),camera=(),geolocation=()');}
+function init_security():void{security_headers();if(session_status()===PHP_SESSION_NONE)session_start();}
+function validate_password(string $p):bool{return strlen($p)>=8&&preg_match('/[A-Z]/',$p)&&preg_match('/[a-z]/',$p)&&preg_match('/[0-9]/',$p);}
+function sanitize_email(string $e):string{return strtolower(trim($e));}
+function validate_upload(array $f,array $u):array{if(($f['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)throw new RuntimeException('Upload failed.');if(($f['size']??0)<=0||$f['size']>MAX_UPLOAD_BYTES)throw new RuntimeException('Invalid file size.');$lim=plan_limits($u);if($f['size']>$lim['max_file_mb']*1048576)throw new RuntimeException('File exceeds plan limit.');$ext=strtolower(pathinfo((string)$f['name'],PATHINFO_EXTENSION));if(!in_array($ext,ALLOWED_AUDIO_EXTENSIONS,true))throw new RuntimeException('Unsupported audio extension.');$mime=(new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name'])?:'';if(!in_array($mime,ALLOWED_AUDIO_MIMES,true))throw new RuntimeException('Unsupported audio content.');return ['extension'=>$ext,'mime'=>$mime,'size'=>(int)$f['size']];}
