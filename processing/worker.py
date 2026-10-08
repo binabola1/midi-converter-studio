@@ -19,7 +19,9 @@ def process(job):
  source=BASE/src["relative_path"];out=UPLOAD/(job["job_id"]+".mid");report=DONE/(job["job_id"]+".json")
  if not source.is_file():raise RuntimeError("Source audio missing: "+str(source))
  progress(cid,10,engine=engine)
- if engine=="neural":\n  quality=job.get("quality",{})\n  cmd=[sys.executable,str(BASE/"processing"/"neural_pipeline.py"),str(source),str(out),"--mode",job["mode"],"--separate","--min-velocity",str(quality.get("min_velocity",20)),"--quantize-strength",str(quality.get("quantize_strength",0.72)),"--track-overrides",json.dumps(quality.get("track_overrides",{}))]\n  if not quality.get("harmonic_cleanup",True): cmd.append("--no-harmonic-cleanup")
+ if engine=="neural":
+  quality=job.get("quality",{})\n  cmd=[sys.executable,str(BASE/"processing"/"neural_pipeline.py"),str(source),str(out),"--mode",job["mode"],"--separate","--min-velocity",str(quality.get("min_velocity",20)),"--quantize-strength",str(quality.get("quantize_strength",0.72)),"--track-overrides",json.dumps(quality.get("track_overrides",{}))]
+  if not quality.get("harmonic_cleanup",True): cmd.append("--no-harmonic-cleanup")
  else: cmd=[sys.executable,str(BASE/"processing"/"audio_to_midi.py"),str(source),str(out),"--mode",job["mode"],"--json",str(report)]
  proc=subprocess.run(cmd,capture_output=True,text=True,timeout=int(os.getenv("MIDI_ENGINE_TIMEOUT","900")))
  if proc.returncode!=0:raise RuntimeError(proc.stderr[-4000:] or proc.stdout[-4000:] or "engine failed")
