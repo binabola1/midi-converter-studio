@@ -6,24 +6,53 @@ $csrf=csrf_token();
 $fileId=(int)($_GET['file_id']??0);
 ?>
 <!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MIDI Piano Roll</title>
-<style>
-body{margin:0;background:#090f1d;color:#eee;font-family:Arial}.bar{padding:12px;background:#111827;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{padding:9px 12px;border:1px solid #334155;border-radius:8px;background:#1e293b;color:white;cursor:pointer}.primary{background:#6366f1}.layout{display:flex;height:calc(100vh - 70px)}.tracks{width:210px;background:#0f172a;padding:10px}.track{padding:10px;margin-bottom:5px;border-radius:7px;cursor:pointer}.active{background:#334155}.area{overflow:auto;flex:1}.grid{position:relative;width:3600px;height:1936px;background:repeating-linear-gradient(to right,#172033 0,#172033 47px,#273449 48px),repeating-linear-gradient(to bottom,transparent 0,transparent 21px,#334155 22px)}.note{position:absolute;height:18px;background:#818cf8;border:1px solid #c7d2fe;border-radius:4px}.note.sel{background:#f59e0b}.status{padding:8px;color:#94a3b8}
-</style></head><body>
-<div class="bar"><b>🎹 MIDI Editor / Piano Roll</b><button class="btn" onclick="location.href='dashboard.php'">Dashboard</button><button class="btn" id="add">Tambah Not</button><button class="btn" id="del">Hapus</button><button class="btn" id="up">Pitch +</button><button class="btn" id="down">Pitch -</button><button class="btn" id="save">Simpan MIDI</button><button class="btn primary" id="download">Download</button><span id="status" class="status">Memuat...</span></div>
-<div class="layout"><aside class="tracks" id="tracks"></aside><main class="area"><div class="grid" id="grid"></div></main></div>
+<title>Professional MIDI Editor</title>
+<link rel="stylesheet" href="assets/css/midi-editor-pro.css">
+</head><body>
+<header class="mpe-top">
+  <div class="mpe-brand">🎹 MIDI CONVERTER STUDIO</div>
+  <button class="mpe-btn" id="back">Dashboard</button>
+  <button class="mpe-btn" id="play">▶ Play</button><button class="mpe-btn" id="pause">Ⅱ Pause</button><button class="mpe-btn" id="stop">■ Stop</button>
+  <button class="mpe-btn" id="undo">↶</button><button class="mpe-btn" id="redo">↷</button>
+  <label>BPM <input class="mpe-input" id="tempo" type="number" min="20" max="300" value="120" style="width:70px"></label>
+  <label>Quantize <select class="mpe-select" id="quant"><option value="0.25">1/16</option><option value="0.5">1/8</option><option value="1">1/4</option><option value="2">1/2</option></select></label>
+  <button class="mpe-btn" id="quantize">Quantize</button><button class="mpe-btn" id="transUp">Transpose +1</button><button class="mpe-btn" id="transDown">Transpose -1</button>
+  <button class="mpe-btn" id="loop">🔁 Loop Off</button><label>Zoom <input id="zoom" type="range" min="20" max="120" value="48"></label>
+  <div class="mpe-spacer"></div><button class="mpe-btn mpe-primary" id="save">💾 Simpan</button><button class="mpe-btn" id="download">⬇ Download</button>
+</header>
+<section class="mpe-main">
+  <aside class="mpe-tracks" id="tracks"><div class="mpe-status">Memuat MIDI…</div></aside>
+  <main class="mpe-work">
+    <div class="mpe-toolbar">
+      <button class="mpe-btn" id="add">＋ Tambah Not</button><button class="mpe-btn" id="delete">Hapus</button>
+      <label>Velocity <input class="mpe-input" id="velocity" type="number" min="1" max="127" value="100" style="width:65px"></label>
+      <span class="mpe-status" id="status">Memuat…</span>
+    </div>
+    <div class="mpe-scroll"><div class="mpe-roll" id="roll"><div class="mpe-gridline"></div><div class="mpe-keys" id="mpe-keys"></div></div></div>
+    <div class="mpe-velocity"><div class="mpe-vcanvas" id="velCanvas"></div></div>
+  </main>
+</section>
+<script src="assets/js/midi-editor-pro.js"></script>
 <script>
-const fileId=<?=json_encode($fileId)?>,csrf=<?=json_encode($csrf)?>;
-let midi=null,ti=0,selected=null,px=48,clickX=0,clickPitch=60;
-const grid=document.getElementById('grid'),status=document.getElementById('status');
-function draw(){grid.innerHTML='';const t=midi.tracks[ti];t.notes.forEach(function(n){const e=document.createElement('div');e.className='note'+(selected===n?' sel':'');e.style.left=(n.start_tick/midi.ticks_per_beat*px)+'px';e.style.top=((127-n.pitch)*22)+'px';e.style.width=Math.max(5,n.duration_ticks/midi.ticks_per_beat*px)+'px';e.title='Pitch '+n.pitch+' Velocity '+n.velocity;e.onclick=function(ev){ev.stopPropagation();selected=n;draw()};grid.appendChild(e)});status.textContent='Track '+(ti+1)+' | '+t.notes.length+' notes'}
-function drawTracks(){const box=document.getElementById('tracks');box.innerHTML='';midi.tracks.forEach(function(t,i){const e=document.createElement('div');e.className='track '+(i===ti?'active':'');e.textContent=(i+1)+'. '+(t.name||'Track');e.onclick=function(){ti=i;selected=null;drawTracks();draw()};box.appendChild(e)})}
-grid.onclick=function(e){if(e.target!==grid)return;clickX=e.offsetX;clickPitch=Math.max(40,Math.min(127,127-Math.floor(e.offsetY/22)));selected=null};
-document.getElementById('add').onclick=function(){const t=midi.tracks[ti];selected={id:0,pitch:clickPitch,start_tick:Math.round(clickX/px*midi.ticks_per_beat),duration_ticks:midi.ticks_per_beat,velocity:100,channel:t.channel||0};t.notes.push(selected);draw()};
-document.getElementById('del').onclick=function(){if(!selected)return;midi.tracks[ti].notes=midi.tracks[ti].notes.filter(function(n){return n!==selected});selected=null;draw()};
-document.getElementById('up').onclick=function(){if(selected){selected.pitch=Math.min(127,selected.pitch+1);draw()}};
-document.getElementById('down').onclick=function(){if(selected){selected.pitch=Math.max(0,selected.pitch-1);draw()}};
-document.getElementById('save').onclick=async function(){const fd=new FormData();fd.append('_csrf',csrf);fd.append('file_id',fileId);fd.append('midi_json',JSON.stringify(midi));status.textContent='Menyimpan...';const r=await fetch('api/midi/save.php',{method:'POST',body:fd});const j=await r.json();status.textContent=j.message};
-document.getElementById('download').onclick=function(){location.href='api/files/download.php?id='+encodeURIComponent(fileId)};
-async function load(){const r=await fetch('api/midi/open.php?file_id='+fileId);const j=await r.json();if(!j.success){status.textContent=j.message;return}midi=j.data;drawTracks();draw()}load();
+(async()=>{
+ const fileId=<?=json_encode($fileId)?>,csrf=<?=json_encode($csrf)?>;
+ const q=await fetch('api/midi/open.php?file_id='+encodeURIComponent(fileId)); const j=await q.json();
+ if(!j.success){document.getElementById('status').textContent=j.message;return}
+ const ed=new MidiEditorPro({data:j.data,fileId,csrf,grid:document.getElementById('roll'),velCanvas:document.getElementById('velCanvas'),status:document.getElementById('status'),trackBox:document.getElementById('tracks')});
+ document.getElementById('tempo').value=ed.tempo;
+ document.getElementById('back').onclick=()=>location.href='dashboard.php';
+ document.getElementById('add').onclick=()=>{ed.insertAt(0,300)};
+ document.getElementById('delete').onclick=()=>ed.deleteSelected();
+ document.getElementById('undo').onclick=()=>ed.undo(); document.getElementById('redo').onclick=()=>ed.redo();
+ document.getElementById('transUp').onclick=()=>ed.transpose(1); document.getElementById('transDown').onclick=()=>ed.transpose(-1);
+ document.getElementById('quantize').onclick=()=>ed.quantize(Number(document.getElementById('quant').value));
+ document.getElementById('tempo').onchange=e=>ed.setTempo(e.target.value);
+ document.getElementById('velocity').onchange=e=>ed.setVelocity(e.target.value);
+ document.getElementById('zoom').oninput=e=>ed.setZoom(e.target.value);
+ document.getElementById('loop').onclick=e=>{ed.loop.on=!ed.loop.on;e.target.textContent=ed.loop.on?'🔁 Loop On':'🔁 Loop Off'};
+ document.getElementById('play').onclick=()=>ed.play(); document.getElementById('pause').onclick=()=>ed.pause(); document.getElementById('stop').onclick=()=>ed.stop();
+ document.getElementById('save').onclick=async()=>await ed.save();
+ document.getElementById('download').onclick=()=>location.href='api/files/download.php?id='+encodeURIComponent(fileId);
+ document.addEventListener('keydown',e=>{if(e.target.matches('input,select'))return;if(e.ctrlKey&&e.key.toLowerCase()==='z'){e.preventDefault();ed.undo()}else if(e.ctrlKey&&e.key.toLowerCase()==='y'){e.preventDefault();ed.redo()}else if(e.key==='Delete')ed.deleteSelected();else if(e.key==='ArrowUp')ed.move(0,1);else if(e.key==='ArrowDown')ed.move(0,-1);else if(e.key==='ArrowLeft')ed.move(-.25,0);else if(e.key==='ArrowRight')ed.move(.25,0)});
+})();
 </script></body></html>
