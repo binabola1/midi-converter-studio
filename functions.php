@@ -1,0 +1,15 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__.'/database.php';
+function e(?string $v):string{return htmlspecialchars($v??'',ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
+function json_response(bool $success,string $message='',array $data=[],int $status=200):never{http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode(['success'=>$success,'message'=>$message,'data'=>$data],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);exit;}
+function redirect(string $p):never{header('Location: '.(str_starts_with($p,'http')?$p:rtrim(BASE_URL,'/').'/'.ltrim($p,'/')));exit;}
+function random_token(int $bytes=32):string{return bin2hex(random_bytes($bytes));}
+function safe_filename(string $f):string{$f=preg_replace('/[^A-Za-z0-9._-]+/','-',basename($f))??'file';return trim($f,'.-_')?:'file';}
+function current_user():?array{if(empty($_SESSION['user_id']))return null;static $u=null;if($u!==null)return $u;$s=db()->prepare('SELECT * FROM users WHERE id=? LIMIT 1');$s->execute([(int)$_SESSION['user_id']]);return $u=$s->fetch()?:null;}
+function require_login():array{$u=current_user();if(!$u){if(str_contains($_SERVER['REQUEST_URI']??'','/api/'))json_response(false,'Authentication required.',[],401);redirect('login.php');}return $u;}
+function require_role(string $role):array{$u=require_login();if(($u['role']??'')!==$role)json_response(false,'Forbidden.',[],403);return $u;}
+function get_setting(string $key,mixed $default=null):mixed{$s=db()->prepare('SELECT setting_value,setting_type FROM settings WHERE setting_key=? LIMIT 1');$s->execute([$key]);$r=$s->fetch();if(!$r)return $default;return match($r['setting_type']){'integer'=>(int)$r['setting_value'],'boolean'=>filter_var($r['setting_value'],FILTER_VALIDATE_BOOLEAN),'json'=>json_decode($r['setting_value'],true)??$default,default=>$r['setting_value']};}
+function plan_limits(array $u):array{$p=($u['plan']??'free')==='pro'?'pro':'free';return ['monthly_conversions'=>(int)get_setting($p.'_monthly_conversions',$p==='pro'?50:5),'max_file_mb'=>(int)get_setting($p.'_max_file_mb',$p==='pro'?100:20),'storage_mb'=>(int)get_setting($p.'_storage_mb',$p==='pro'?5120:500)];}
+function log_activity(?int $uid,string $action,?string $type=null,?int $eid=null,array $details=[]):void{$s=db()->prepare('INSERT INTO activity_logs(user_id,action,entity_type,entity_id,ip_address,user_agent,details_json) VALUES(?,?,?,?,?,?,?)');$s->execute([$uid,$action,$type,$eid,$_SERVER['REMOTE_ADDR']??null,substr($_SERVER['HTTP_USER_AGENT']??'',0,500),$details?json_encode($details,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES):null]);}
+function ensure_directories():void{foreach([STORAGE_ROOT.'/audio',STORAGE_ROOT.'/midi',STORAGE_ROOT.'/temp',STORAGE_ROOT.'/covers',PROCESSING_ROOT.'/queue',PROCESSING_ROOT.'/processing',PROCESSING_ROOT.'/completed',PROCESSING_ROOT.'/failed',LOG_ROOT] as $d)if(!is_dir($d)&&!mkdir($d,0750,true)&&!is_dir($d))throw new RuntimeException('Cannot create '.$d);}
