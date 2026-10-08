@@ -19,10 +19,12 @@ def process(job):
  source=BASE/src["relative_path"];out=UPLOAD/(job["job_id"]+".mid");report=DONE/(job["job_id"]+".json")
  if not source.is_file():raise RuntimeError("Source audio missing: "+str(source))
  progress(cid,10)
- cmd=[sys.executable,str(BASE/"processing"/"audio_to_midi.py"),str(source),str(out),"--mode",job["mode"],"--json",str(report)]
+ engine=job.get("engine","neural")
+ if engine=="neural": cmd=[sys.executable,str(BASE/"processing"/"neural_pipeline.py"),str(source),str(out),"--mode",job["mode"],"--separate"]
+ else: cmd=[sys.executable,str(BASE/"processing"/"audio_to_midi.py"),str(source),str(out),"--mode",job["mode"],"--json",str(report)]
  proc=subprocess.run(cmd,capture_output=True,text=True,timeout=int(os.getenv("MIDI_ENGINE_TIMEOUT","900")))
  if proc.returncode!=0:raise RuntimeError(proc.stderr[-4000:] or proc.stdout[-4000:] or "engine failed")
- progress(cid,80);meta=json.loads(report.read_text(encoding="utf-8"));size=out.stat().st_size
+ progress(cid,80); meta=json.loads((Path(str(out)+".json") if engine=="neural" and Path(str(out)+".json").exists() else report).read_text(encoding="utf-8")) if (Path(str(out)+".json").exists() if engine=="neural" else report.exists()) else {"engine":engine,"mode":job["mode"]}; size=out.stat().st_size
  with db() as x:
   with x.cursor() as q:
    q.execute("INSERT INTO files(user_id,type,original_name,stored_name,relative_path,mime_type,extension,size_bytes,status,metadata_json) VALUES(%s,'midi',%s,%s,%s,'audio/midi','mid',%s,'active',%s)",(job["user_id"],Path(src["original_name"]).stem+".mid",out.name,"midi/"+out.name,size,json.dumps(meta)))
