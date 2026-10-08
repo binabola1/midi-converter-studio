@@ -17,7 +17,7 @@ def process(job):
   with x.cursor() as q:q.execute("SELECT * FROM files WHERE id=%s AND user_id=%s",(job["source_file_id"],job["user_id"]));src=q.fetchone()
  if not src:raise RuntimeError("Source file not found")
  source=BASE/src["relative_path"];out=UPLOAD/(job["job_id"]+".mid");report=DONE/(job["job_id"]+".json")
- if not source.is_file():raise RuntimeError("Source audio missing: "+str(source))
+ if not source.is_file():raise RuntimeError("Source media missing: "+str(source))
  progress(cid,10,engine=engine)
  if engine=="neural":
   quality=job.get("quality",{})
@@ -34,7 +34,12 @@ def process(job):
  with db() as x:
   with x.cursor() as q:
    q.execute("INSERT INTO files(user_id,type,original_name,stored_name,relative_path,mime_type,extension,size_bytes,status,metadata_json) VALUES(%s,'midi',%s,%s,%s,'audio/midi','mid',%s,'active',%s)",(job["user_id"],Path(src["original_name"]).stem+".mid",out.name,"midi/"+out.name,size,json.dumps(meta)))
-   fid=q.lastrowid;q.execute("UPDATE conversions SET output_file_id=%s,status='completed',progress=100,processing_engine=%s,settings_json=%s,completed_at=NOW() WHERE id=%s",(fid,("phase10-neural" if engine=="neural" else "phase8-classic"),json.dumps(meta),cid))
+   fid=q.lastrowid;q.execute("UPDATE conversions SET output_file_id=%s,status='completed',progress=100,processing_engine=%s,settings_json=%s,completed_at=NOW() WHERE id=%s",(fid,("phase10-neural" if engine=="neural" else ("phase12-reprocess" if engine=="reprocess" else "phase8-classic")),json.dumps(meta),cid))
+   parent=int(job.get("parent_file_id") or 0)
+   if parent:
+    q.execute("UPDATE midi_quality_versions SET is_current=0 WHERE file_id=?".replace("?","%s"),(parent,))
+    q.execute("SELECT COALESCE(MAX(version_number),0)+1 FROM midi_quality_versions WHERE parent_file_id=%s OR file_id=%s",(parent,parent));vn=int(q.fetchone()[0])
+    q.execute("INSERT INTO midi_quality_versions(file_id,parent_file_id,version_number,label,settings_json,quality_json,is_current) VALUES(%s,%s,%s,%s,%s,%s,1)",(fid,parent,vn,"Refined v"+str(vn),json.dumps(job.get("quality",{})),json.dumps(meta.get("quality_refinement",meta))))
 def main():
  for f in sorted(QUEUE.glob("*.json")):
   job={}
