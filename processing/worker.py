@@ -10,7 +10,7 @@ def db():
  return pymysql.connect(host=os.getenv("MIDI_DB_HOST","127.0.0.1"),port=int(os.getenv("MIDI_DB_PORT","3306")),user=os.getenv("MIDI_DB_USER","root"),password=os.getenv("MIDI_DB_PASS",""),database=os.getenv("MIDI_DB_NAME","midi_converter_studio"),autocommit=True,cursorclass=pymysql.cursors.DictCursor)
 def progress(cid,p,status=None,error=None):
  with db() as x:
-  with x.cursor() as q:q.execute("UPDATE conversions SET progress=%s,status=COALESCE(%s,status),error_message=%s,started_at=COALESCE(started_at,NOW()),completed_at=CASE WHEN %s IN ('completed','failed') THEN NOW() ELSE completed_at END,processing_engine=%s WHERE id=%s",(p,status,error,status,"advanced-audio-engine",cid))
+  with x.cursor() as q:q.execute("UPDATE conversions SET progress=%s,status=COALESCE(%s,status),error_message=%s,started_at=COALESCE(started_at,NOW()),completed_at=CASE WHEN %s IN ('completed','failed') THEN NOW() ELSE completed_at END,processing_engine=%s WHERE id=%s",(p,status,error,status,("phase10-neural" if engine=="neural" else "phase8-classic"),cid))
 def process(job):
  cid=int(job["conversion_id"]);progress(cid,1,"processing")
  with db() as x:
@@ -24,7 +24,7 @@ def process(job):
  else: cmd=[sys.executable,str(BASE/"processing"/"audio_to_midi.py"),str(source),str(out),"--mode",job["mode"],"--json",str(report)]
  proc=subprocess.run(cmd,capture_output=True,text=True,timeout=int(os.getenv("MIDI_ENGINE_TIMEOUT","900")))
  if proc.returncode!=0:raise RuntimeError(proc.stderr[-4000:] or proc.stdout[-4000:] or "engine failed")
- progress(cid,80); meta=json.loads((Path(str(out)+".json") if engine=="neural" and Path(str(out)+".json").exists() else report).read_text(encoding="utf-8")) if (Path(str(out)+".json").exists() if engine=="neural" else report.exists()) else {"engine":engine,"mode":job["mode"]}; size=out.stat().st_size
+ progress(cid,92); meta=json.loads((Path(str(out)+".json") if engine=="neural" and Path(str(out)+".json").exists() else report).read_text(encoding="utf-8")) if (Path(str(out)+".json").exists() if engine=="neural" else report.exists()) else {"engine":engine,"mode":job["mode"]}; size=out.stat().st_size
  with db() as x:
   with x.cursor() as q:
    q.execute("INSERT INTO files(user_id,type,original_name,stored_name,relative_path,mime_type,extension,size_bytes,status,metadata_json) VALUES(%s,'midi',%s,%s,%s,'audio/midi','mid',%s,'active',%s)",(job["user_id"],Path(src["original_name"]).stem+".mid",out.name,"midi/"+out.name,size,json.dumps(meta)))
