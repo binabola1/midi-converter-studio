@@ -51,7 +51,7 @@ def main():
         merge_midis(mids,raw)
         refined=out
         quality_script=Path(__file__).with_name("midi_quality.py")
-        quality_cmd=[sys.executable,str(quality_script),str(raw),str(refined),"--mode",a.mode]
+        quality_cmd=[sys.executable,str(quality_script),str(raw),str(refined),"--mode",a.mode,"--min-velocity",str(a.min_velocity),"--quantize-strength",str(a.quantize_strength),"--track-overrides",a.track_overrides] + (["--no-harmonic-cleanup"] if a.no_harmonic_cleanup else [])
         qr=run(quality_cmd,timeout=3600)
         if qr.returncode!=0:
             raise RuntimeError("PHASE 10 MIDI refinement failed: "+(qr.stderr[-5000:] or qr.stdout[-5000:]))
