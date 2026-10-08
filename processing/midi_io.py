@@ -5,10 +5,12 @@ from pathlib import Path
 import mido
 def load(path):
     mid=mido.MidiFile(str(path)); tracks=[]
+    tempo=120
     for ti,tr in enumerate(mid.tracks):
         abs_tick=0; active={}; notes=[]; name=None; channel=0; program=0
         for msg in tr:
             abs_tick+=msg.time
+            if msg.type=="set_tempo": tempo=round(mido.tempo2bpm(msg.tempo))
             if msg.type=="track_name": name=msg.name
             if hasattr(msg,"channel"): channel=msg.channel
             if msg.type=="program_change": program=msg.program
@@ -18,9 +20,11 @@ def load(path):
                 if key in active:
                     start,vel=active.pop(key); notes.append({"pitch":msg.note,"start_tick":start,"duration_ticks":max(1,abs_tick-start),"velocity":vel,"channel":getattr(msg,"channel",channel)})
         tracks.append({"track_index":ti,"name":name,"channel":channel,"program":program,"notes":notes})
-    return {"type":1 if len(mid.tracks)>1 else 0,"ticks_per_beat":mid.ticks_per_beat,"tracks":tracks}
+    return {"type":1 if len(mid.tracks)>1 else 0,"ticks_per_beat":mid.ticks_per_beat,"tempo":tempo,"tracks":tracks}
 def save(path,data):
     mid=mido.MidiFile(type=int(data.get("type",1)),ticks_per_beat=int(data.get("ticks_per_beat",480)))
+    tempo=max(20,min(300,int(data.get("tempo",120))))
+    meta=mido.MidiTrack(); meta.append(mido.MetaMessage("set_tempo",tempo=mido.bpm2tempo(tempo),time=0)); mid.tracks.append(meta)
     for td in data.get("tracks",[]):
         tr=mido.MidiTrack(); name=td.get("name")
         if name: tr.append(mido.MetaMessage("track_name",name=str(name),time=0))
