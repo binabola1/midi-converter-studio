@@ -24,12 +24,18 @@ def transcribe(audio,out_dir):
     mids=sorted(out_dir.glob("*.mid"))
     if not mids: raise RuntimeError("Basic Pitch produced no MIDI")
     return mids[0]
-def merge_midis(paths,out):
+def merge_midis(items,out):
     import mido
     merged=mido.MidiFile(type=1,ticks_per_beat=480)
-    for p in paths:
+    for stem,p in items:
         m=mido.MidiFile(str(p))
-        for tr in m.tracks: merged.tracks.append(tr.copy())
+        first_note_track=True
+        for tr in m.tracks:
+            copied=tr.copy()
+            if first_note_track and any(getattr(msg,"type",None) in ("note_on","note_off") for msg in copied):
+                copied.insert(0,mido.MetaMessage("track_name",name=stem,time=0))
+                first_note_track=False
+            merged.tracks.append(copied)
     merged.save(str(out))
 def main():
     ap=argparse.ArgumentParser();ap.add_argument("input");ap.add_argument("output");ap.add_argument("--mode",default="automatic");ap.add_argument("--model",default=os.getenv("DEMUCS_MODEL","htdemucs"));ap.add_argument("--separate",action="store_true");ap.add_argument("--work-dir")
@@ -39,7 +45,7 @@ def main():
         for stem in MODE_TO_STEMS.get(a.mode,["other"]):
             audio=stems.get(stem)
             if not audio: continue
-            md=transcribe(audio,work/"midi"/stem);mids.append(md);report["stems"].append({"name":stem,"audio":str(audio),"midi":str(md)})
+            md=transcribe(audio,work/"midi"/stem);mids.append((stem,md));report["stems"].append({"name":stem,"audio":str(audio),"midi":str(md)})
         if not mids: raise RuntimeError("No suitable stem was available for transcription")
         raw=out.with_name(out.stem+"_raw.mid")
         merge_midis(mids,raw)
