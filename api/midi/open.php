@@ -5,4 +5,4 @@ $user=require_login();$id=(int)($_GET['file_id']??0);$s=db()->prepare('SELECT * 
 if(!$file)json_response(false,'MIDI tidak ditemukan.',[],404);
 $tracks=db()->prepare('SELECT * FROM midi_tracks WHERE file_id=? ORDER BY track_index');$tracks->execute([$id]);$out=[];
 foreach($tracks->fetchAll() as $t){$n=db()->prepare('SELECT id,pitch,start_tick,duration_ticks,velocity,channel FROM midi_notes WHERE track_id=? ORDER BY start_tick,id');$n->execute([$t['id']]);$t['notes']=$n->fetchAll();$out[]=$t;}
-$meta=json_decode((string)$file['metadata_json'],true)?:[];json_response(true,'OK',['file'=>['id'=>(int)$file['id'],'name'=>$file['original_name']],'ticks_per_beat'=>(int)($meta['ticks_per_beat']??480),'tracks'=>$out]);
+$meta=json_decode((string)$file['metadata_json'],true)?:[];json_response(true,'OK',['file'=>['id'=>(int)$file['id'],'name'=>$file['original_name']],'ticks_per_beat'=>(int)($meta['ticks_per_beat']??480),'tempo'=>(int)($meta['tempo']??120),'tracks'=>$out]);
