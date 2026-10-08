@@ -13,8 +13,8 @@ try{
  if(!$file)throw new RuntimeException('File audio tidak ditemukan.');
  $lim=plan_limits($user);$s=db()->prepare('SELECT COUNT(*) FROM conversions WHERE user_id=? AND created_at>=DATE_FORMAT(NOW(),"%Y-%m-01") AND status<>"cancelled"');$s->execute([$user['id']]);
  if((int)$s->fetchColumn()>=$lim['monthly_conversions'])throw new RuntimeException('Batas konversi bulanan paket Anda sudah tercapai.');
- $jobId='job_'.bin2hex(random_bytes(12));$s=db()->prepare('INSERT INTO conversions(user_id,source_file_id,job_id,mode,status,progress) VALUES(?,?,?,?,?,?)');$s->execute([$user['id'],$fileId,$jobId,$mode,'queued',0]);$conversionId=(int)db()->lastInsertId();
- $queue=PROCESSING_ROOT.'/queue/'.$jobId.'.json';file_put_contents($queue,json_encode(['job_id'=>$jobId,'conversion_id'=>$conversionId,'user_id'=>(int)$user['id'],'source_file_id'=>$fileId,'mode'=>$mode,'created_at'=>date(DATE_ATOM)],JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES),LOCK_EX);
+ $engine=strtolower(trim((string)($_POST['engine']??'neural'))); if(!in_array($engine,['neural','classic'],true))$engine='neural'; $jobId='job_'.bin2hex(random_bytes(12));$s=db()->prepare('INSERT INTO conversions(user_id,source_file_id,job_id,mode,status,progress) VALUES(?,?,?,?,?,?)');$s->execute([$user['id'],$fileId,$jobId,$mode,'queued',0]);$conversionId=(int)db()->lastInsertId();
+ $queue=PROCESSING_ROOT.'/queue/'.$jobId.'.json';file_put_contents($queue,json_encode(['job_id'=>$jobId,'conversion_id'=>$conversionId,'user_id'=>(int)$user['id'],'source_file_id'=>$fileId,'mode'=>$mode,'engine'=>$engine,'created_at'=>date(DATE_ATOM)],JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES),LOCK_EX);
  log_activity((int)$user['id'],'conversion_queued','conversion',$conversionId,['job_id'=>$jobId,'mode'=>$mode]);
- json_response(true,'Conversion masuk antrean.',['job_id'=>$jobId,'conversion_id'=>$conversionId,'status'=>'queued','progress'=>0]);
+ json_response(true,'Conversion masuk antrean.',['job_id'=>$jobId,'conversion_id'=>$conversionId,'status'=>'queued','progress'=>0,'engine'=>$engine]);
 }catch(Throwable $e){json_response(false,$e->getMessage(),[],400);}
