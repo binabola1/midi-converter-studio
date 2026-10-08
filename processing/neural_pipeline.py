@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PHASE 9 neural pipeline adapter using Demucs + Spotify Basic Pitch."""
 from __future__ import annotations
-import argparse,json,os,shutil,subprocess,tempfile
+import argparse,json,os,shutil,subprocess,tempfile,sys
 from pathlib import Path
 STEMS=("vocals","drums","bass","other")
 MODE_TO_STEMS={"vocals":["vocals"],"bass":["bass"],"percussion":["drums"],"piano":["other"],"melody":["vocals","other"],"polyphonic":["other","vocals","bass"],"automatic":["vocals","bass","drums","other"]}
@@ -32,7 +32,7 @@ def merge_midis(paths,out):
         for tr in m.tracks: merged.tracks.append(tr.copy())
     merged.save(str(out))
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument("input");ap.add_argument("output");ap.add_argument("--mode",default="automatic");ap.add_argument("--model",default=os.getenv("DEMucs_MODEL","htdemucs"));ap.add_argument("--separate",action="store_true");ap.add_argument("--work-dir")
+    ap=argparse.ArgumentParser();ap.add_argument("input");ap.add_argument("output");ap.add_argument("--mode",default="automatic");ap.add_argument("--model",default=os.getenv("DEMUCS_MODEL","htdemucs"));ap.add_argument("--separate",action="store_true");ap.add_argument("--work-dir")
     a=ap.parse_args();src=Path(a.input).resolve();out=Path(a.output).resolve();work=Path(a.work_dir or tempfile.mkdtemp(prefix="midi-neural-"));work.mkdir(parents=True,exist_ok=True)
     try:
         stems=separate(src,work/"separated",a.model) if a.separate else {"other":src}; mids=[];report={"engine":"phase9-neural","model":a.model,"separated":bool(a.separate),"mode":a.mode,"stems":[]}
@@ -41,7 +41,22 @@ def main():
             if not audio: continue
             md=transcribe(audio,work/"midi"/stem);mids.append(md);report["stems"].append({"name":stem,"audio":str(audio),"midi":str(md)})
         if not mids: raise RuntimeError("No suitable stem was available for transcription")
-        merge_midis(mids,out);report["output"]=str(out);Path(str(out)+".json").write_text(json.dumps(report,indent=2),encoding="utf-8");print(json.dumps(report))
+        raw=out.with_name(out.stem+"_raw.mid")
+        merge_midis(mids,raw)
+        refined=out
+        quality_script=Path(__file__).with_name("midi_quality.py")
+        quality_cmd=[sys.executable,str(quality_script),str(raw),str(refined),"--mode",a.mode]
+        qr=run(quality_cmd,timeout=3600)
+        if qr.returncode!=0:
+            raise RuntimeError("PHASE 10 MIDI refinement failed: "+(qr.stderr[-5000:] or qr.stdout[-5000:]))
+        quality_report=Path(str(refined)+".json")
+        quality=json.loads(quality_report.read_text(encoding="utf-8")) if quality_report.exists() else {}
+        raw.unlink(missing_ok=True)
+        raw_json=Path(str(raw)+".json"); raw_json.unlink(missing_ok=True)
+        report["output"]=str(out)
+        report["quality_refinement"]=quality
+        Path(str(out)+".json").write_text(json.dumps(report,indent=2),encoding="utf-8")
+        print(json.dumps(report))
     finally:
         if not a.work_dir: shutil.rmtree(work,ignore_errors=True)
 if __name__=="__main__":main()
