@@ -178,10 +178,11 @@ def build_track(name, notes, tpb, program, channel):
     return track
 
 def refine(input_path, output_path, mode="automatic", min_velocity=20,
-           quantize_strength=0.72, harmonic_cleanup=True):
+           quantize_strength=0.72, harmonic_cleanup=True, track_overrides=None):
     mid = mido.MidiFile(str(input_path))
     tpb = mid.ticks_per_beat or TPB_DEFAULT
     source_tracks = extract_tracks(mid)
+    track_overrides = track_overrides or {}
     all_notes = []
     refined_tracks = []
     report = {
@@ -211,7 +212,10 @@ def refine(input_path, output_path, mode="automatic", min_velocity=20,
         velocity_normalize(kept)
         quantize_adaptive(kept, tpb, quantize_strength)
         report["quantized_notes"] += len(kept)
+        override = track_overrides.get(str(tr["index"]), {}) if isinstance(track_overrides, dict) else {}
         label, kind = classify_track(tr["name"], tr["name"])
+        label = str(override.get("name", label))[:80] or label
+        kind = str(override.get("type", kind)) if str(override.get("type", kind)) in GM_PROGRAMS else kind
         if kind == "drums":
             channel = 9
             program = 0
@@ -269,6 +273,7 @@ def main():
     ap.add_argument("--min-velocity", type=int, default=20)
     ap.add_argument("--quantize-strength", type=float, default=0.72)
     ap.add_argument("--no-harmonic-cleanup", action="store_true")
+    ap.add_argument("--track-overrides", default="{}")
     args = ap.parse_args()
     report = refine(args.input, args.output, args.mode,
                     clamp(args.min_velocity, 1, 127),
