@@ -7,10 +7,10 @@ $fileId=(int)($_GET['file_id']??0);
 ?>
 <!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Professional MIDI Editor</title>
-<link rel="stylesheet" href="assets/css/midi-editor-pro.css">
+<link rel="stylesheet" href="assets/css/midi-editor-pro.css"><link rel="stylesheet" href="assets/css/midi-studio-player.css">
 </head><body>
 <header class="mpe-top">
-  <div class="mpe-brand">🎹 MIDI CONVERTER STUDIO</div>
+  <div class="mpe-brand">🎹 MIDI CONVERTER STUDIO</div><button class="mpe-btn" id="metronome">Metronome</button>
   <button class="mpe-btn" id="back">Dashboard</button>
   <button class="mpe-btn" id="play">▶ Play</button><button class="mpe-btn" id="pause">Ⅱ Pause</button><button class="mpe-btn" id="stop">■ Stop</button>
   <button class="mpe-btn" id="undo">↶</button><button class="mpe-btn" id="redo">↷</button>
@@ -32,7 +32,7 @@ $fileId=(int)($_GET['file_id']??0);
     <div class="mpe-velocity"><div class="mpe-vcanvas" id="velCanvas"></div></div>
   </main>
 </section>
-<script src="assets/js/midi-editor-pro.js"></script>
+<script src="assets/js/midi-editor-pro.js"></script><script src="assets/js/midi-studio-player.js"></script>
 <script>
 (async()=>{
  const fileId=<?=json_encode($fileId)?>,csrf=<?=json_encode($csrf)?>;
@@ -52,6 +52,8 @@ $fileId=(int)($_GET['file_id']??0);
  document.getElementById('loop').onclick=e=>{ed.loop.on=!ed.loop.on;e.target.textContent=ed.loop.on?'🔁 Loop On':'🔁 Loop Off'};
  document.getElementById('play').onclick=()=>ed.play(); document.getElementById('pause').onclick=()=>ed.pause(); document.getElementById('stop').onclick=()=>ed.stop();
  document.getElementById('save').onclick=async()=>await ed.save();
+ document.getElementById('metronome').onclick=()=>ed.metronome=!ed.metronome;
+ document.addEventListener('keydown',e=>{if(e.target.matches('input,select'))return;if(e.code==='Space'){e.preventDefault();ed.playTimer?ed.pause():ed.play()}if(e.key.toLowerCase()==='m')ed.metronome=!ed.metronome;if(e.key.toLowerCase()==='s')ed.stop()});
  document.getElementById('download').onclick=()=>location.href='api/files/download.php?id='+encodeURIComponent(fileId);
  document.addEventListener('keydown',e=>{if(e.target.matches('input,select'))return;if(e.ctrlKey&&e.key.toLowerCase()==='z'){e.preventDefault();ed.undo()}else if(e.ctrlKey&&e.key.toLowerCase()==='y'){e.preventDefault();ed.redo()}else if(e.key==='Delete')ed.deleteSelected();else if(e.key==='ArrowUp')ed.move(0,1);else if(e.key==='ArrowDown')ed.move(0,-1);else if(e.key==='ArrowLeft')ed.move(-.25,0);else if(e.key==='ArrowRight')ed.move(.25,0)});
 })();
